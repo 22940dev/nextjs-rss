@@ -1,5 +1,6 @@
 import Head from 'next/head'
 import Parser from 'rss-parser'
+import Link from 'next/link'
 
 const Home = props => (
   <div>
@@ -19,6 +20,15 @@ const Home = props => (
             <h1 className='text-3xl font-bold leading-tight text-gray-900'>
               Latest posts
             </h1>
+            <div>
+              <Link href='/form'>
+                <a>
+                  <p className='mt-2 underline cursor-pointer'>
+                    Add a new blog
+                  </p>
+                </a>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -80,20 +90,48 @@ const Home = props => (
   </div>
 )
 
-export async function getStaticProps (context) {
-  const parser = new Parser()
+export async function getStaticProps(context) {
+  const Airtable = require('airtable')
+  const base = new Airtable({ apiKey: process.env.APIKEY }).base(
+    'appZKl2MCd5HF6yF5'
+  )
 
-  const data = await parser.parseURL('https://flaviocopes.com/index.xml')
+  const records = await base('Table 1')
+    .select({
+      view: 'Grid view'
+    })
+    .firstPage()
+
+  const feeds = records
+    .filter(record => {
+      if (record.get('approved') === true) return true
+    })
+
+    .map(record => {
+      return {
+        id: record.id,
+        name: record.get('name'),
+        blogurl: record.get('blogurl'),
+        feedurl: record.get('feedurl')
+      }
+    })
 
   const posts = []
-  data.items.slice(0, 10).forEach((item) => {
-    posts.push({
-      title: item.title,
-      link: item.link,
-      date: item.isoDate,
-      name: 'Flavio Copes'
+
+  const parser = new Parser()
+
+  for (const feed of feeds) {
+    const data = await parser.parseURL(feed.feedurl)
+
+    data.items.slice(0, 10).forEach(item => {
+      posts.push({
+        title: item.title,
+        link: item.link,
+        date: item.isoDate,
+        name: feed.name
+      })
     })
-  })
+  }
 
   return {
     props: { posts }
